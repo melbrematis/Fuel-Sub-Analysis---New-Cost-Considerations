@@ -1,0 +1,521 @@
+---
+title: "Fuel-Substitution Cost Effectiveness Analysis, HVAC and DHWHeat Pump Measures"
+output: html_document
+date: "2024-04-26"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+```{r, include=FALSE}
+library(tidyverse)
+library(readxl)
+library(compare)
+library(rmarkdown)
+library (dplyr)
+library (scales)
+library (kableExtra)
+
+```
+## Background 
+
+### The Problem:
+Energy Efficiency (EE) uses the Total Resource Cost (TRC) test to determine what EE resources to procure. TRC represents costs and benefits of EE projects to the Utility and Participant. Unfortunately, most Fuel-Substitution measures have very low TRC values under EE's current Cost-Effectiveness framework which means Program Administrators struggle to implement them. 
+
+ED recognizes that the TRC currently does not include the participant Utility Bill Savings Benefits or the Costs of Infrastructure upgrades often involved in Fuel-Substitution projects. 
+
+### Research Question:
+If EE factored Participant Utility Bill Savings Benefits or the Costs of Infrastructure upgrades, how would this impact the TRC of Fuel-Sub projects?
+
+To explore this question, Calculate Gas Benefits with Utility Bill Savings, and Total Costs with Infrastructure Costs of the Fuel-Sub Measures claimed in PG&E's 2023 Plug Load and Appliance, and Upstream HVAC Programs in Single Family Homes.
+
+### Inputs
+
+```{r, echo=TRUE}
+#Selections
+MeasAppType <- 'NR'
+BldgType <- 'SFm'
+SZ <- 'med'
+ClimateZone <- 12
+HeatPumpHVAC_res <- 'SWHC045'  
+HPWH_res <- 'SWWH025'
+EU_HP_HVAC<-'DEER:HVAC_Eff_HP'
+EU_HPWH<-'DEER:Res_ClothesDishWasher'
+EUL_Claims_HeatPumpHVAC_res <- 15 #2024 Study recommends 23 years
+EUL_Claims_HPWH_res <- 10 #2024 Study recommends 20 years
+EUL_New_HeatPumpHVAC_res <- 23 #2024 Study recommends 23 years
+EUL_New_HPWH_res <- 20 #2024 Study recommends 20 years
+#Constants
+PGE_WACC_A <- 0.0734 #Source:ACC, discount Rate
+PGE_WACC_Q <- PGE_WACC_A/4
+Divider_discount <- PGE_WACC_Q + 1
+```
+
+## Benefits Analysis
+### Data Sources
+
+The data inputs are shown below:
+
+• Claims data was pulled from CEDARS in April 2024: https://cedars.sound-data.com/reports/download-record-level-report/claims/2023/
+
+• Load Shapes profiles with Avoided Costs are from CEDARS: https://file.ac/l1-GqhWF8OU/
+
+• Utility Bill Impacts were developed by Guidehouse
+
+The data from the online sources were truncated and renamed to simplify this analysis; the names of these files are listed below. 
+
+```{r, echo=TRUE}
+
+#Read in Fuel Sub Claims 2023 Q1-Q4
+FS23 <- read_excel("C:\\Users\\mmh\\R  Programming\\subtests\\FS_NewBens\\23_FS_Claims_PGE.xlsx") #Normal Replacement Only (No New Construction)
+
+#Read in Load Shapes (accessible at https://file.ac/l1-GqhWF8OU/)
+Gas_LS_QRT <- read_excel("C:\\Users\\mmh\\R  Programming\\subtests\\FS_NewBens\\G_LS_QRT.xlsx") #Quarterly LS
+
+#Read in Bill Impacts Data
+Utility_Bill_Ben_CARE <- read_excel("C:\\Users\\mmh\\R  Programming\\subtests\\FS_NewBens\\data_TH\\res_bill_impacts_PGE_Monthly_CARE.xlsx")
+Utility_Bill_Ben_Market <- read_excel("C:\\Users\\mmh\\R  Programming\\subtests\\FS_NewBens\\data_TH\\res_bill_impacts_PGE_Monthly_Market.xlsx")
+```
+
+
+```{r, echo=FALSE}
+#Read in Claim Yr Quarters
+Quarters <- read_excel("C:\\Users\\mmh\\R  Programming\\subtests\\FS_NewBens\\Qrt.xlsx")
+FS23 <- as.data.frame(FS23)
+
+#Total Energy: by Measure & CZ
+df_HeatPumpHVAC_res<- filter(FS23, CZ == ClimateZone, MeasureID == HeatPumpHVAC_res,`Measure Application Type` == MeasAppType, `Building Type` == BldgType )
+df_HeatPumpHVAC_res  <- df_HeatPumpHVAC_res %>% mutate(Therm_TotalAnnual=df_HeatPumpHVAC_res$`Unit Therm First Baseline` * df_HeatPumpHVAC_res$`Number of Units`)
+HeatPumpHVAC_res_therm<- c(sum(df_HeatPumpHVAC_res$`Therm_TotalAnnual`))
+
+df_HPWH_res<- filter(FS23, CZ == ClimateZone, MeasureID == HPWH_res, `Measure Application Type` == MeasAppType, `Building Type` == BldgType)
+df_HPWH_res<-df_HPWH_res%>% mutate(Therm_TotalAnnual=df_HPWH_res$`Unit Therm First Baseline` * df_HPWH_res$`Number of Units`)
+HPWH_res_therm<- c(sum(df_HPWH_res$`Therm_TotalAnnual`))
+
+#Add Bill Savings Bens
+#filter, Size, CZ
+#x3 to get quarterly
+Num_Measures <- FS23 %>% count(MeasureID)
+Num_HPWH <- filter(Num_Measures, MeasureID == HPWH_res ) 
+Num_HVAC <- filter(Num_Measures, MeasureID == HeatPumpHVAC_res ) 
+
+Utility_Bill_M <- filter(Utility_Bill_Ben_Market, `CZ` == ClimateZone, `Building Type` == BldgType, `Size` == SZ)
+
+Utility_Bill_HVAC_M <- (Utility_Bill_M$HP_HVAC*12*EUL_New_HeatPumpHVAC_res)/(1+PGE_WACC_A)^EUL_New_HeatPumpHVAC_res
+Utility_Bill_HVAC_M_Total <- (Num_HVAC$n*Utility_Bill_HVAC_M)
+
+Utility_Bill_HPWH_M <- (Utility_Bill_M$HPWH*12*EUL_New_HPWH_res)/(1+PGE_WACC_A)^EUL_New_HPWH_res
+Utility_Bill_HPWH_M_Total <- (Num_HPWH$n*Utility_Bill_HPWH_M)
+
+
+Utility_Bill_C <- filter(Utility_Bill_Ben_CARE, `CZ` == ClimateZone, `Building Type` == BldgType, `Size` == SZ)
+
+Utility_Bill_HVAC_C <- (Utility_Bill_C$HP_HVAC*12*EUL_New_HeatPumpHVAC_res)/(1+PGE_WACC_A)^EUL_New_HeatPumpHVAC_res
+Utility_Bill_HVAC_C_Total <- (Num_HVAC$n*Utility_Bill_HVAC_C)
+
+Utility_Bill_HPWH_C <- (Utility_Bill_C$HPWH*12*EUL_New_HPWH_res)/(1+PGE_WACC_A)^EUL_New_HPWH_res
+Utility_Bill_HPWH_C_Total <- (Num_HPWH$n*Utility_Bill_HPWH_C)
+
+Claims_GasBen_HeatPumpHVAC_res<- c(sum(df_HeatPumpHVAC_res$`Gas Benefits`))
+Claims_GasBen_HPWH_res<- c(sum(df_HPWH_res$`Gas Benefits`))
+```
+
+### Calculate Benefits: Gas Commodity, T&D, GHG, Utility Bill
+```{r, echo= TRUE}
+#Calculated Quarterly Avoided Costs (energy x LS) over EUL of the Claims
+#Generate the Claim Year Quarters
+EUL_Claims_HeatPumpHVAC_res <-  list(Quarters$EUL_15) 
+EUL_Claims_HeatPumpHVAC_res<- as.data.frame(EUL_Claims_HeatPumpHVAC_res)
+
+EUL_Claims_HPWH_res <-  list(Quarters$EUL_10) 
+colnames(EUL_Claims_HeatPumpHVAC_res) <- c('CYQtr')
+EUL_Claims_HPWH_res<- as.data.frame(EUL_Claims_HPWH_res)
+colnames(EUL_Claims_HPWH_res) <- c('CYQtr')
+
+EUL_New_HeatPumpHVAC_res <-  list(Quarters$EUL_23) 
+EUL_New_HeatPumpHVAC_res<- as.data.frame(EUL_New_HeatPumpHVAC_res)
+
+EUL_New_HPWH_res <-  list(Quarters$EUL_20) 
+colnames(EUL_New_HeatPumpHVAC_res) <- c('CYQtr')
+EUL_New_HPWH_res<- as.data.frame(EUL_New_HPWH_res)
+colnames(EUL_New_HPWH_res) <- c('CYQtr')
+
+#Total Therm Savings from Claims Data 
+Therm_TotalAnnual_HVAC <- c(sum(df_HeatPumpHVAC_res$`Therm_TotalAnnual`))
+Therm_TotalAnnual_HPWH <- c(sum(df_HPWH_res$`Therm_TotalAnnual`))
+
+#Generate the NPV of Commodity and T&D Avoided Costs
+generate_qtrly_npv_1 <- function(load_shape, 
+                               considered_qtrs, discount_rate, Therms) {
+  filtered_load_shape <- filter(load_shape, 
+                                Qtr %in% considered_qtrs$CYQt) %>% 
+    mutate(Qtr_step = 1:n()) %>% 
+    mutate(Qtr_ID = Qtr_step-1) %>% 
+    mutate(Total_Discounted = (Total/(discount_rate^Qtr_ID)))
+  
+  result_1 <- c(sum(filtered_load_shape$'Total_Discounted'*Therms))
+  return (result_1)
+}
+
+GasComTD_HeatPumpHVAC_res <- 
+  generate_qtrly_npv_1(Gas_LS_QRT, 
+                     EUL_Claims_HeatPumpHVAC_res, Divider_discount,
+                     Therm_TotalAnnual_HVAC)
+
+GasComTD_HPWH_res <- 
+  generate_qtrly_npv_1(Gas_LS_QRT, EUL_Claims_HPWH_res,
+                     Divider_discount, Therm_TotalAnnual_HPWH )
+
+GasComTD_HeatPumpHVAC_res_new <- 
+  generate_qtrly_npv_1(Gas_LS_QRT, 
+                     EUL_New_HeatPumpHVAC_res, Divider_discount,
+                     Therm_TotalAnnual_HVAC)
+
+GasComTD_HPWH_res_new <- 
+  generate_qtrly_npv_1(Gas_LS_QRT, EUL_New_HPWH_res,
+                     Divider_discount, Therm_TotalAnnual_HPWH )
+
+
+```
+
+```{r, echo=TRUE}
+#Calculate kWhe of the Therm savings so we can use the Electric GHG Avoided Costs (the Gas GHG Avoided Costs were not generated in the latest data set)
+Gas_kwhe_HPWH <- Therm_TotalAnnual_HPWH*29.3
+Gas_kwhe_HVAC <- Therm_TotalAnnual_HVAC*29.3
+kWh_LS_QRT <- read_excel("C:\\Users\\mmh\\R  Programming\\subtests\\FS_NewBens\\E_LS_QRT_22.xlsx") #Quarterly LS
+
+#Generate the NPV of CO2 Avoided Costs
+generate_qtrly_npv_2 <- function(load_shape, climate_zone, end_use, 
+                               considered_qtrs, discount_rate, gas_kwhe) {
+  filtered_load_shape <- filter(load_shape, CZ == climate_zone, EU == end_use, 
+                                Qtr %in% considered_qtrs$CYQt) %>% 
+    mutate(Qtr_step = 1:n()) %>% 
+    mutate(Qtr_ID = Qtr_step-1) %>% 
+    mutate(CO2_Discounted = (CO2/(discount_rate^Qtr_ID)))
+  
+  result <- 2*c(sum(filtered_load_shape$'CO2_Discounted'*gas_kwhe))
+  return (result)
+}
+
+GasCO2_HeatPumpHVAC_res <- 
+  generate_qtrly_npv_2(kWh_LS_QRT, ClimateZone, EU_HP_HVAC, 
+                     EUL_Claims_HeatPumpHVAC_res, Divider_discount,
+                     Gas_kwhe_HVAC)
+
+GasCO2_HPWH_res <- 
+  generate_qtrly_npv_2(kWh_LS_QRT, ClimateZone, EU_HPWH, EUL_Claims_HPWH_res,
+                     Divider_discount, Gas_kwhe_HPWH)
+
+GasCO2_HeatPumpHVAC_res_new <- 
+  generate_qtrly_npv_2(kWh_LS_QRT, ClimateZone, EU_HP_HVAC, 
+                     EUL_New_HeatPumpHVAC_res, Divider_discount,
+                     Gas_kwhe_HVAC)
+
+GasCO2_HPWH_res_new <- 
+  generate_qtrly_npv_2(kWh_LS_QRT, ClimateZone, EU_HPWH, EUL_New_HPWH_res,
+                     Divider_discount, Gas_kwhe_HPWH)
+
+#Calculate Total Gas Benefits
+Calc_GasBen_HeatPumpHVAC_res <-  GasCO2_HeatPumpHVAC_res+ GasComTD_HeatPumpHVAC_res
+Calc_GasBen_HPWH_res <- GasCO2_HPWH_res + GasComTD_HPWH_res
+
+Calc_GasBen_HeatPumpHVAC_res_new <-  GasCO2_HeatPumpHVAC_res_new+ GasComTD_HeatPumpHVAC_res_new
+Calc_GasBen_HPWH_res_new <- GasCO2_HPWH_res_new + GasComTD_HPWH_res_new
+
+```
+
+
+```{r, echo=FALSE}
+HP_HVAC <- dollar(Calc_GasBen_HeatPumpHVAC_res)
+HP_HVAC_Bill <-dollar(Utility_Bill_HVAC_M_Total)
+BillImpact_HVAC<- percent((Utility_Bill_HVAC_M_Total)/Calc_GasBen_HeatPumpHVAC_res_new)
+
+HPWH <- dollar(Calc_GasBen_HPWH_res)
+HPWH_Bill <-dollar(Utility_Bill_HPWH_M_Total)
+BillImpact_HPWH<- percent((Utility_Bill_HPWH_M_Total)/Calc_GasBen_HPWH_res_new)
+
+```
+
+The Lifecycle FS NR Heat Pump HVAC Gas Benefits of the 2023 PGE claims are **`r HP_HVAC`**, and the total Lifecycle, Market-Rate Utility Bill savings for all mid-sized single family homes in these same claims are **`r HP_HVAC_Bill`**. 
+
+The Lifecycle FS NR HPWH Gas Benefits of the 2023 PGE claims are **`r HPWH`**, and the total Lifecycle, Market-Rate Utility Bill savings for all mid-sized single family homes in these same claims are **`r HPWH_Bill`**. 
+
+
+```{r, echo=FALSE}
+# Table
+Results_gas <- data.frame(
+  Measure = c("HVAC Heat Pump", "Heat Pump Water Heater"),
+  "Gas Benefits" = c(HP_HVAC, HPWH),
+  "Bill Market Savings" = c(HP_HVAC_Bill,HPWH_Bill)
+  
+)
+```
+
+```{r, echo=FALSE}
+
+knitr::kable(Results_gas, caption = "Total Benefits for Fuel Sub Measure Claims", 
+             col.names = c("Measure", "Gas Benefits","Bill Market Savings"))
+
+```
+
+
+
+
+
+## Cost Analysis
+
+
+### Data Sources
+
+The data inputs are shown below:
+
+• Claims data was pulled from CEDARS in April 2024: https://cedars.sound-data.com/reports/download-record-level-report/claims/2023/
+
+• Load Shapes profiles with Avoided Costs are from CEDARS: https://file.ac/l1-GqhWF8OU/
+
+• Infrastructure Costs were based on ED Study (LINK TO PDA)
+
+The data from the online sources were truncated and renamed to simplify this analysis; the names of these files are listed below. 
+
+```{r, echo=TRUE}
+#Read in Fuel Sub Claims 2023 Q1-Q4
+FS23 <- read_excel("C:\\Users\\mmh\\R  Programming\\subtests\\FS_NewBens\\23_FS_Claims_PGE.xlsx") #Normal Replacement Only (No New Construction)
+
+#Read in Load Shapes (accessible at https://file.ac/l1-GqhWF8OU/)
+kWh_LS_QRT <- read_excel("C:\\Users\\mmh\\R  Programming\\subtests\\FS_NewBens\\E_LS_QRT_22.xlsx") #Quarterly LS
+
+#Read in Infrastructure Costs
+Infra_Costs <- read_excel("C:\\Users\\mmh\\R  Programming\\subtests\\FS_NewBens\\data_TH\\FS_InfraCosts.xlsx") #input as full cost to install Qtr. No Discounting Needed
+```
+
+```{r, echo=FALSE}
+FS23 <- as.data.frame(FS23)
+#Read in Claim Yr Quarters
+Quarters <- read_excel("C:\\Users\\mmh\\R  Programming\\subtests\\FS_NewBens\\Qrt.xlsx")
+#Total Energy: by Measure & CZ
+df_HeatPumpHVAC_res<- filter(FS23, CZ == ClimateZone, MeasureID == HeatPumpHVAC_res, `Measure Application Type` == MeasAppType, `Building Type` == BldgType) 
+df_HeatPumpHVAC_res  <- df_HeatPumpHVAC_res %>% mutate(kWh_TotalAnnual=df_HeatPumpHVAC_res$`Unit kWh First Baseline` * df_HeatPumpHVAC_res$`Number of Units`)
+HeatPumpHVAC_res_kWh<- c(sum(df_HeatPumpHVAC_res$`kWh_TotalAnnual`))
+
+df_HPWH_res<- filter(FS23, CZ == ClimateZone, MeasureID == HPWH_res,`Measure Application Type` == MeasAppType, `Building Type` == BldgType)
+df_HPWH_res<-df_HPWH_res %>% mutate(kWh_TotalAnnual=df_HPWH_res$`Unit kWh First Baseline` * df_HPWH_res$`Number of Units`)
+HPWH_res_kWh<- c(sum(df_HPWH_res$`kWh_TotalAnnual`))
+
+#Claimed Electric Costs and Gas Benefits
+#df_HeatPumpHVAC_res <- lapply(df_HeatPumpHVAC_res,as.numeric)
+#df_HPWH_res <- lapply(df_HPWH_res,as.numeric)
+
+
+Claims_ElecCost_HeatPumpHVAC_res<- c(sum(df_HeatPumpHVAC_res$`Electric Supply Cost Gross`))
+Claims_ElecCost_HPWH_res<- c(sum(df_HPWH_res$`Electric Supply Cost Gross`))
+
+#Calculated Quarterly Electric ACs (energy x LS) over EUL_Claims
+#Filter for CZ, End Use, CLaimYearQrt
+EUL_Claims_HeatPumpHVAC_res <-  list(Quarters$EUL_15) 
+EUL_Claims_HeatPumpHVAC_res<- as.data.frame(EUL_Claims_HeatPumpHVAC_res)
+colnames(EUL_Claims_HeatPumpHVAC_res) <- c('CYQtr')
+
+EUL_Claims_HPWH_res <-  list(Quarters$EUL_10) 
+EUL_Claims_HPWH_res<- as.data.frame(EUL_Claims_HPWH_res)
+colnames(EUL_Claims_HPWH_res) <- c('CYQtr')
+
+
+#Calculated Quarterly Electric ACs (energy x LS) over EUL_Claims
+#Filter for CZ, End Use, CLaimYearQrt
+EUL_New_HeatPumpHVAC_res <-  list(Quarters$EUL_23) 
+EUL_New_HeatPumpHVAC_res<- as.data.frame(EUL_New_HeatPumpHVAC_res)
+colnames(EUL_New_HeatPumpHVAC_res) <- c('CYQtr')
+
+EUL_New_HPWH_res <-  list(Quarters$EUL_20) 
+EUL_New_HPWH_res<- as.data.frame(EUL_New_HPWH_res)
+colnames(EUL_New_HPWH_res) <- c('CYQtr')
+
+
+
+```
+
+
+### Calculate Costs: Electric Supply Costs & Infrastructure Costs
+
+```{r, echo= TRUE}
+
+kWh_TotalAnnual_HVAC <- c(sum(df_HeatPumpHVAC_res$`kWh_TotalAnnual`))
+kWh_TotalAnnual_HPWH <- c(sum(df_HPWH_res$`kWh_TotalAnnual`))
+
+#Generate the NPV of CO2 Avoided Costs
+generate_qtrly_npv_e <- function(load_shape, climate_zone, end_use, 
+                                 considered_qtrs, discount_rate,
+                                 kWh_TotalAnnual, AC) {
+  filtered_load_shape <- filter(load_shape, CZ == climate_zone, EU == end_use, 
+                                Qtr %in% considered_qtrs$CYQt) %>% 
+    mutate(Qtr_step = 1:n()) %>% 
+    mutate(Qtr_ID = Qtr_step-1) %>% 
+    mutate(AC_type_discounted = (!!sym(AC)/(discount_rate^Qtr_ID)))
+  
+ result3 <- c(sum(filtered_load_shape$AC_type_discounted*kWh_TotalAnnual))
+  return (result3)
+ 
+}
+#old EUL
+AC_Sum_Gen_E_HeatPumpHVAC_res <-
+  generate_qtrly_npv_e(kWh_LS_QRT, ClimateZone, EU_HP_HVAC,
+                     EUL_Claims_HeatPumpHVAC_res, Divider_discount,
+                     kWh_TotalAnnual_HVAC,'Gen')
+AC_Sum_TD_E_HeatPumpHVAC_res <- 
+  generate_qtrly_npv_e(kWh_LS_QRT, ClimateZone, EU_HP_HVAC, 
+                    EUL_Claims_HeatPumpHVAC_res, Divider_discount,
+                    kWh_TotalAnnual_HVAC,'TD')
+AC_Sum_Co2_E_HeatPumpHVAC_res <- 
+  generate_qtrly_npv_e(kWh_LS_QRT, ClimateZone, EU_HP_HVAC, 
+                     EUL_Claims_HeatPumpHVAC_res, Divider_discount,
+                     kWh_TotalAnnual_HVAC,'CO2')
+
+
+AC_Sum_Gen_E_HPWH_res <- 
+  generate_qtrly_npv_e(kWh_LS_QRT, ClimateZone, EU_HPWH, EUL_Claims_HPWH_res,
+                     Divider_discount, kWh_TotalAnnual_HPWH,'Gen')
+AC_Sum_TD_E_HPWH_res <- 
+  generate_qtrly_npv_e(kWh_LS_QRT, ClimateZone, EU_HPWH, EUL_Claims_HPWH_res,
+                     Divider_discount, kWh_TotalAnnual_HPWH,'TD')
+AC_Sum_Co2_E_HPWH_res <- 
+  generate_qtrly_npv_e(kWh_LS_QRT, ClimateZone, EU_HPWH, EUL_Claims_HPWH_res,
+                     Divider_discount, kWh_TotalAnnual_HPWH,'CO2')
+
+#new EUL
+AC_Sum_Gen_E_HeatPumpHVAC_res_new <-
+  generate_qtrly_npv_e(kWh_LS_QRT, ClimateZone, EU_HP_HVAC,
+                     EUL_New_HeatPumpHVAC_res, Divider_discount,
+                     kWh_TotalAnnual_HVAC,'Gen')
+AC_Sum_TD_E_HeatPumpHVAC_res_new <- 
+  generate_qtrly_npv_e(kWh_LS_QRT, ClimateZone, EU_HP_HVAC, 
+                    EUL_New_HeatPumpHVAC_res , Divider_discount,
+                    kWh_TotalAnnual_HVAC,'TD')
+AC_Sum_Co2_E_HeatPumpHVAC_res_new <- 
+  generate_qtrly_npv_e(kWh_LS_QRT, ClimateZone, EU_HP_HVAC, 
+                     EUL_New_HeatPumpHVAC_res , Divider_discount,
+                     kWh_TotalAnnual_HVAC,'CO2')
+
+
+AC_Sum_Gen_E_HPWH_res_new <- 
+  generate_qtrly_npv_e(kWh_LS_QRT, ClimateZone, EU_HPWH, EUL_New_HPWH_res,
+                     Divider_discount, kWh_TotalAnnual_HPWH,'Gen')
+AC_Sum_TD_E_HPWH_res_new <- 
+  generate_qtrly_npv_e(kWh_LS_QRT, ClimateZone, EU_HPWH, EUL_New_HPWH_res,
+                     Divider_discount, kWh_TotalAnnual_HPWH,'TD')
+AC_Sum_Co2_E_HPWH_res_new <- 
+  generate_qtrly_npv_e(kWh_LS_QRT, ClimateZone, EU_HPWH, EUL_New_HPWH_res,
+                     Divider_discount, kWh_TotalAnnual_HPWH,'CO2')
+
+#Calculate Total Electric Costs 
+Calc_ElecCost_HeatPumpHVAC_res <-  (AC_Sum_Gen_E_HeatPumpHVAC_res + AC_Sum_TD_E_HeatPumpHVAC_res + AC_Sum_Co2_E_HeatPumpHVAC_res)*(-1)
+Calc_ElecCost_HPWH_res <- (AC_Sum_Gen_E_HPWH_res + AC_Sum_TD_E_HPWH_res + AC_Sum_Co2_E_HPWH_res)*(-1)
+
+
+Calc_ElecCost_HeatPumpHVAC_res_new <-  (AC_Sum_Gen_E_HeatPumpHVAC_res_new  + AC_Sum_TD_E_HeatPumpHVAC_res_new  + AC_Sum_Co2_E_HeatPumpHVAC_res_new  )*(-1)
+Calc_ElecCost_HPWH_res_new  <- (AC_Sum_Gen_E_HPWH_res_new  + AC_Sum_TD_E_HPWH_res_new  + AC_Sum_Co2_E_HPWH_res_new )*(-1)
+```
+``` {r echo=TRUE}
+
+#Add Infra Costs
+Num_Measures <- FS23 %>% count(MeasureID)
+Num_HPWH <- filter(Num_Measures, MeasureID == HPWH_res ) 
+Num_HVAC <- filter(Num_Measures, MeasureID == HeatPumpHVAC_res ) 
+InfraCosts <- filter(Infra_Costs, Sector == 'res')
+
+HP_HVAC_InfraCosts <- InfraCosts$HP_HVAC*Num_HVAC$n
+HPWH_InfraCosts <- InfraCosts$HPWH*Num_HPWH$n
+
+HP_HVAC_InfC <- dollar(HP_HVAC_InfraCosts)
+HPWH_InfC <- dollar(HPWH_InfraCosts)
+TRC_Cost_HPHVAC <- dollar (c(sum(df_HeatPumpHVAC_res$'TRC Cost Gross')))
+TRC_Cost_HPWH<- dollar(c(sum(df_HPWH_res$'TRC Cost Gross')))
+```
+The Lifecycle FS NR Heat Pump HVAC Total Costs for the 2023 PGE claims are **`r TRC_Cost_HPHVAC`**, and the residential infrastructure costs are  **`r HP_HVAC_InfC `**. 
+
+The Lifecycle FS NR HPWH Gas Benefits of the 2023 PGE claims are **`r TRC_Cost_HPWH`**, and the and the residential infrastructure costs are **`r HPWH_InfC`**. 
+
+```{r, echo=FALSE}
+# Table
+Results_costs <- data.frame(
+  Measure = c("HVAC Heat Pump", "Heat Pump Water Heater"),
+  "TRC Costs" = c(TRC_Cost_HPHVAC,TRC_Cost_HPWH),
+  "Infrastructure Costs" = c(HP_HVAC_InfC,HPWH_InfC)
+)
+```
+
+```{r, echo=FALSE}
+
+knitr::kable(Results_costs, caption = "Total Costs for Fuel Sub Measure Claims",
+             col.names = c("Measure", "TRC Costs","Infrastructure Costs"))
+
+```
+
+
+
+## Results: 
+
+``` {r echo=TRUE}
+#Clacualte increases to TRC Benefits
+
+Claims_HP_HVAC <- filter(FS23, CZ == ClimateZone, MeasureID == HeatPumpHVAC_res, `Measure Application Type` == MeasAppType, `Building Type` == BldgType)
+TRC_Claims_HP_HVAC <- mean(Claims_HP_HVAC$TRC)
+
+Claims_HPWH <- filter(FS23, CZ == ClimateZone, MeasureID == HPWH_res, `Measure Application Type` == MeasAppType, `Building Type` == BldgType)
+TRC_Claims_HPWH <- mean(Claims_HPWH$TRC)
+
+TRC_New_HP_HVAC_EUL <- TRC_Claims_HP_HVAC * (1+((Calc_GasBen_HeatPumpHVAC_res_new-Calc_GasBen_HeatPumpHVAC_res)/Calc_GasBen_HeatPumpHVAC_res))
+TRC_New_HPWH_EUL <- TRC_Claims_HPWH * (1+ ((Calc_GasBen_HPWH_res_new-Calc_GasBen_HPWH_res)/Calc_GasBen_HPWH_res))
+
+#factor in elec costs increase to TRC
+
+multiplier_elec_cost <- c(sum(df_HeatPumpHVAC_res$'Electric Supply Cost')) / c(sum(df_HeatPumpHVAC_res$'TRC Cost Gross'))
+percent_inc_Costs_HPHVAC_EUL <-((Calc_ElecCost_HeatPumpHVAC_res_new-Calc_ElecCost_HeatPumpHVAC_res)/Calc_ElecCost_HeatPumpHVAC_res)* multiplier_elec_cost
+TRC_EUL_Net_HPHVAC <-TRC_New_HP_HVAC_EUL - (TRC_New_HP_HVAC_EUL*percent_inc_Costs_HPHVAC_EUL)
+
+multiplier_elec_cost_2 <- c(sum(df_HPWH_res$'Electric Supply Cost')) / c(sum(df_HPWH_res$'TRC Cost Gross'))
+percent_inc_Costs_HPWH_EUL <- ((Calc_ElecCost_HPWH_res_new-Calc_ElecCost_HPWH_res)/Calc_ElecCost_HPWH_res)*multiplier_elec_cost_2
+TRC_EUL_Net_HPWH<- TRC_New_HPWH_EUL - (TRC_New_HPWH_EUL*percent_inc_Costs_HPWH_EUL)
+
+#Bill Impacts
+
+Bill_EUL_HVAC <- Utility_Bill_HVAC_M_Total+Calc_GasBen_HeatPumpHVAC_res_new
+Bill_EUL_HPWH <-Utility_Bill_HPWH_M_Total+ Calc_GasBen_HPWH_res_new
+TRC_HP_HVAC_EUL_Bills <- TRC_EUL_Net_HPHVAC * (1+((Bill_EUL_HVAC-Calc_GasBen_HeatPumpHVAC_res_new)/Calc_GasBen_HeatPumpHVAC_res_new))
+TRC_HPWH_EUL_Bills <- TRC_EUL_Net_HPWH  * (1+ ((Bill_EUL_HPWH-Calc_GasBen_HPWH_res_new)/Calc_GasBen_HPWH_res_new))
+
+
+```
+
+
+
+```{r, echo=FALSE}
+
+#Decrease in TRC from above (i.e., due to bill savings and gas bens inc) due to  Infra Costs
+
+
+#what % is InfraCost of the Total Costs with EUL inc  .... compare to percent_inc_Costs_xxxxx_EUL
+percent_inc_Costs_HPHVAC_Infra <-HP_HVAC_InfraCosts/ (c(sum(df_HeatPumpHVAC_res$'Electric Supply Cost'))+c(sum(df_HeatPumpHVAC_res$'TRC Cost Gross')))
+TRC_Bill_EUL_Net_Infra_HPHVAC <- TRC_HP_HVAC_EUL_Bills  - (TRC_HP_HVAC_EUL_Bills *percent_inc_Costs_HPHVAC_Infra)
+
+percent_inc_Costs_HPWH_Infra <-HPWH_InfraCosts/ (c(sum(df_HPWH_res$'Electric Supply Cost'))+c(sum(df_HPWH_res$'TRC Cost Gross')))
+TRC_Bill_EUL_Net_Infra_HPWH <- TRC_HPWH_EUL_Bills - (TRC_HPWH_EUL_Bills*percent_inc_Costs_HPWH_Infra )
+
+
+#Table
+TRC_IMPACT <- data.frame(
+  Measure = c("HVAC Heat Pump", "Heat Pump Water Heater"),
+  TRC_average = c(TRC_Claims_HP_HVAC,TRC_Claims_HPWH),
+  TRC_inc_eul = c(TRC_EUL_Net_HPHVAC,TRC_EUL_Net_HPWH),
+  TRC_inc_bill = c(TRC_HP_HVAC_EUL_Bills,TRC_HPWH_EUL_Bills),
+  TRC_dec_infracosts = c(TRC_Bill_EUL_Net_Infra_HPHVAC,TRC_Bill_EUL_Net_Infra_HPWH)
+)
+TRC_IMPACT$TRC_average<- sprintf("%.2f", TRC_IMPACT$TRC_average)
+TRC_IMPACT$TRC_inc_eul<- sprintf("%.2f", TRC_IMPACT$TRC_inc_eul)
+TRC_IMPACT$TRC_inc_bill<- sprintf("%.2f", TRC_IMPACT$TRC_inc_bill)
+TRC_IMPACT$TRC_dec_infracosts<- sprintf("%.2f", TRC_IMPACT$TRC_dec_infracosts)
+knitr::kable(TRC_IMPACT, caption = "Average Total Resource Costs (TRC) for Fuel-Sub Measures",
+             col.names = c("Measure", "TRC Claims", "TRC, Increased from EUL Study","TRC, Increased from Bill Impacts", "TRC, Decreased from Infra Cost"))
+```
+
