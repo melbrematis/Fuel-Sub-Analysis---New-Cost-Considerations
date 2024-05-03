@@ -1,6 +1,8 @@
 ---
 title: "Fuel-Substitution Cost Effectiveness Analysis, HVAC and DHWHeat Pump Measures"
-output: html_document
+output:
+  word_document: default
+  html_document: default
 date: "2024-04-26"
 ---
 
@@ -181,45 +183,43 @@ GasComTD_HPWH_res_new <-
 ```
 
 ```{r, echo=TRUE}
-#Calculate kWhe of the Therm savings so we can use the Electric GHG Avoided Costs (the Gas GHG Avoided Costs were not generated in the latest data set)
-Gas_kwhe_HPWH <- Therm_TotalAnnual_HPWH*29.3
-Gas_kwhe_HVAC <- Therm_TotalAnnual_HVAC*29.3
-kWh_LS_QRT <- read_excel("C:\\Users\\mmh\\R  Programming\\subtests\\FS_NewBens\\E_LS_QRT_22.xlsx") #Quarterly LS
-
-#Generate the NPV of CO2 Avoided Costs
-generate_qtrly_npv_2 <- function(load_shape, climate_zone, end_use, 
+ #Calculate kWhe of the Therm savings so we can use the Electric GHG Avoided Costs (the Gas GHG Avoided Costs were not generated in the latest data set)
+ Gas_kwhe_HPWH <- Therm_TotalAnnual_HPWH*29.3
+ Gas_kwhe_HVAC <- Therm_TotalAnnual_HVAC*29.3
+ kWh_LS_QRT <- read_excel("C:\\Users\\mmh\\R  Programming\\subtests\\FS_NewBens\\E_LS_QRT_22.xlsx") #Quarterly LS
+ 
+ #Generate the NPV of CO2 Avoided Costs
+ generate_qtrly_npv_2 <- function(load_shape, climate_zone, end_use,
                                considered_qtrs, discount_rate, gas_kwhe) {
-  filtered_load_shape <- filter(load_shape, CZ == climate_zone, EU == end_use, 
-                                Qtr %in% considered_qtrs$CYQt) %>% 
-    mutate(Qtr_step = 1:n()) %>% 
-    mutate(Qtr_ID = Qtr_step-1) %>% 
-    mutate(CO2_Discounted = (CO2/(discount_rate^Qtr_ID)))
-  
-  result <- 2*c(sum(filtered_load_shape$'CO2_Discounted'*gas_kwhe))
+   filtered_load_shape <- filter(load_shape, CZ == climate_zone, EU == end_use,
+                                 Qtr %in% considered_qtrs$CYQt) %>%
+     mutate(Qtr_step = 1:n()) %>%
+     mutate(Qtr_ID = Qtr_step-1) %>%
+     mutate(CO2_Discounted = (CO2/(discount_rate^Qtr_ID)))
+ 
+   result <- 2*c(sum(filtered_load_shape$'CO2_Discounted'*gas_kwhe))
   return (result)
 }
 
-GasCO2_HeatPumpHVAC_res <- 
-  generate_qtrly_npv_2(kWh_LS_QRT, ClimateZone, EU_HP_HVAC, 
-                     EUL_Claims_HeatPumpHVAC_res, Divider_discount,
-                     Gas_kwhe_HVAC)
-
-GasCO2_HPWH_res <- 
-  generate_qtrly_npv_2(kWh_LS_QRT, ClimateZone, EU_HPWH, EUL_Claims_HPWH_res,
-                     Divider_discount, Gas_kwhe_HPWH)
-
-GasCO2_HeatPumpHVAC_res_new <- 
-  generate_qtrly_npv_2(kWh_LS_QRT, ClimateZone, EU_HP_HVAC, 
-                     EUL_New_HeatPumpHVAC_res, Divider_discount,
-                     Gas_kwhe_HVAC)
-
-GasCO2_HPWH_res_new <- 
-  generate_qtrly_npv_2(kWh_LS_QRT, ClimateZone, EU_HPWH, EUL_New_HPWH_res,
-                     Divider_discount, Gas_kwhe_HPWH)
+#Gas GHG Adder
+# Gas_GHG_Adder <- 114
+# 
+# Gas_Ben_GHG_HPWH <- Therm_TotalAnnual_HPWH * Gas_GHG_Adder
+# percent_inc_GasBen_HPWH <- (Gas_Ben_GHG_HPWH - Calc_GasBen_HPWH_res)/ Calc_GasBen_HPWH_res
+# 
+# Gas_Ben_GHG_HPHVAC <- Therm_TotalAnnual_HVAC * Gas_GHG_Adder
+# percent_inc_GasBen_HPHVAC <- (Gas_Ben_GHG_HPHVAC - Calc_GasBen_HeatPumpHVAC_res)/ Calc_GasBen_HeatPumpHVAC_res
+# 
+# 
+ GasCO2_HeatPumpHVAC_res <-   generate_qtrly_npv_2 (kWh_LS_QRT, ClimateZone, EU_HP_HVAC,EUL_Claims_HeatPumpHVAC_res,Divider_discount, Gas_kwhe_HVAC )
+ GasCO2_HPWH_res <-   generate_qtrly_npv_2 (kWh_LS_QRT, ClimateZone, EU_HPWH,EUL_Claims_HPWH_res,Divider_discount, Gas_kwhe_HPWH)
+   
+GasCO2_HeatPumpHVAC_res_new <-  generate_qtrly_npv_2 (kWh_LS_QRT, ClimateZone, EU_HP_HVAC,EUL_New_HeatPumpHVAC_res,Divider_discount, Gas_kwhe_HVAC)
+ GasCO2_HPWH_res_new <-  generate_qtrly_npv_2(kWh_LS_QRT, ClimateZone, EU_HPWH,EUL_New_HPWH_res,Divider_discount, Gas_kwhe_HPWH)
 
 #Calculate Total Gas Benefits
-Calc_GasBen_HeatPumpHVAC_res <-  GasCO2_HeatPumpHVAC_res+ GasComTD_HeatPumpHVAC_res
-Calc_GasBen_HPWH_res <- GasCO2_HPWH_res + GasComTD_HPWH_res
+Calc_GasBen_HeatPumpHVAC_res <- GasComTD_HeatPumpHVAC_res # GasCO2_HeatPumpHVAC_res+ 
+Calc_GasBen_HPWH_res <-  GasComTD_HPWH_res #GasCO2_HPWH_res +
 
 Calc_GasBen_HeatPumpHVAC_res_new <-  GasCO2_HeatPumpHVAC_res_new+ GasComTD_HeatPumpHVAC_res_new
 Calc_GasBen_HPWH_res_new <- GasCO2_HPWH_res_new + GasComTD_HPWH_res_new
@@ -516,6 +516,8 @@ TRC_IMPACT$TRC_inc_eul<- sprintf("%.2f", TRC_IMPACT$TRC_inc_eul)
 TRC_IMPACT$TRC_inc_bill<- sprintf("%.2f", TRC_IMPACT$TRC_inc_bill)
 TRC_IMPACT$TRC_dec_infracosts<- sprintf("%.2f", TRC_IMPACT$TRC_dec_infracosts)
 knitr::kable(TRC_IMPACT, caption = "Average Total Resource Costs (TRC) for Fuel-Sub Measures",
-             col.names = c("Measure", "TRC Claims", "TRC, Increased from EUL Study","TRC, Increased from Bill Impacts", "TRC, Decreased from Infra Cost"))
+             col.names = c("Measure", "TRC Claims", "TRC, Increased from EUL Study","TRC, Increased from EUL Study & Bill Impacts", "TRC, Increased from EUL Study & Bill Impacts, Decreased from Infra Cost"))
 ```
+
+
 
