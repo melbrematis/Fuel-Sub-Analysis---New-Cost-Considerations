@@ -12,7 +12,7 @@
 
 <meta name="date" content="2024-04-26" />
 
-<title>Fuel-Substitution Cost Effectiveness Analysis</title>
+<title>Fuel-Substitution Cost Effectiveness Analysis, HVAC and DHWHeat Pump Measures</title>
 
 <script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
 // be compatible with the behavior of Pandoc < 2.8).
@@ -350,7 +350,7 @@ display: none;
 
 
 <h1 class="title toc-ignore">Fuel-Substitution Cost Effectiveness
-Analysis</h1>
+Analysis, HVAC and DHWHeat Pump Measures</h1>
 <h4 class="date">2024-04-26</h4>
 
 </div>
@@ -475,54 +475,52 @@ GasComTD_HeatPumpHVAC_res_new &lt;-
 GasComTD_HPWH_res_new &lt;- 
   generate_qtrly_npv_1(Gas_LS_QRT, EUL_New_HPWH_res,
                      Divider_discount, Therm_TotalAnnual_HPWH )</code></pre>
-<pre class="r"><code>#Calculate kWhe of the Therm savings so we can use the Electric GHG Avoided Costs (the Gas GHG Avoided Costs were not generated in the latest data set)
-Gas_kwhe_HPWH &lt;- Therm_TotalAnnual_HPWH*29.3
-Gas_kwhe_HVAC &lt;- Therm_TotalAnnual_HVAC*29.3
-kWh_LS_QRT &lt;- read_excel(&quot;C:\\Users\\mmh\\R  Programming\\subtests\\FS_NewBens\\E_LS_QRT_22.xlsx&quot;) #Quarterly LS
-
-#Generate the NPV of CO2 Avoided Costs
-generate_qtrly_npv_2 &lt;- function(load_shape, climate_zone, end_use, 
+<pre class="r"><code> #Calculate kWhe of the Therm savings so we can use the Electric GHG Avoided Costs (the Gas GHG Avoided Costs were not generated in the latest data set)
+ Gas_kwhe_HPWH &lt;- Therm_TotalAnnual_HPWH*29.3
+ Gas_kwhe_HVAC &lt;- Therm_TotalAnnual_HVAC*29.3
+ kWh_LS_QRT &lt;- read_excel(&quot;C:\\Users\\mmh\\R  Programming\\subtests\\FS_NewBens\\E_LS_QRT_22.xlsx&quot;) #Quarterly LS
+ 
+ #Generate the NPV of CO2 Avoided Costs
+ generate_qtrly_npv_2 &lt;- function(load_shape, climate_zone, end_use,
                                considered_qtrs, discount_rate, gas_kwhe) {
-  filtered_load_shape &lt;- filter(load_shape, CZ == climate_zone, EU == end_use, 
-                                Qtr %in% considered_qtrs$CYQt) %&gt;% 
-    mutate(Qtr_step = 1:n()) %&gt;% 
-    mutate(Qtr_ID = Qtr_step-1) %&gt;% 
-    mutate(CO2_Discounted = (CO2/(discount_rate^Qtr_ID)))
-  
-  result &lt;- 2*c(sum(filtered_load_shape$&#39;CO2_Discounted&#39;*gas_kwhe))
+   filtered_load_shape &lt;- filter(load_shape, CZ == climate_zone, EU == end_use,
+                                 Qtr %in% considered_qtrs$CYQt) %&gt;%
+     mutate(Qtr_step = 1:n()) %&gt;%
+     mutate(Qtr_ID = Qtr_step-1) %&gt;%
+     mutate(CO2_Discounted = (CO2/(discount_rate^Qtr_ID)))
+ 
+   result &lt;- 2*c(sum(filtered_load_shape$&#39;CO2_Discounted&#39;*gas_kwhe))
   return (result)
 }
 
-GasCO2_HeatPumpHVAC_res &lt;- 
-  generate_qtrly_npv_2(kWh_LS_QRT, ClimateZone, EU_HP_HVAC, 
-                     EUL_Claims_HeatPumpHVAC_res, Divider_discount,
-                     Gas_kwhe_HVAC)
-
-GasCO2_HPWH_res &lt;- 
-  generate_qtrly_npv_2(kWh_LS_QRT, ClimateZone, EU_HPWH, EUL_Claims_HPWH_res,
-                     Divider_discount, Gas_kwhe_HPWH)
-
-GasCO2_HeatPumpHVAC_res_new &lt;- 
-  generate_qtrly_npv_2(kWh_LS_QRT, ClimateZone, EU_HP_HVAC, 
-                     EUL_New_HeatPumpHVAC_res, Divider_discount,
-                     Gas_kwhe_HVAC)
-
-GasCO2_HPWH_res_new &lt;- 
-  generate_qtrly_npv_2(kWh_LS_QRT, ClimateZone, EU_HPWH, EUL_New_HPWH_res,
-                     Divider_discount, Gas_kwhe_HPWH)
+#Gas GHG Adder
+# Gas_GHG_Adder &lt;- 114
+# 
+# Gas_Ben_GHG_HPWH &lt;- Therm_TotalAnnual_HPWH * Gas_GHG_Adder
+# percent_inc_GasBen_HPWH &lt;- (Gas_Ben_GHG_HPWH - Calc_GasBen_HPWH_res)/ Calc_GasBen_HPWH_res
+# 
+# Gas_Ben_GHG_HPHVAC &lt;- Therm_TotalAnnual_HVAC * Gas_GHG_Adder
+# percent_inc_GasBen_HPHVAC &lt;- (Gas_Ben_GHG_HPHVAC - Calc_GasBen_HeatPumpHVAC_res)/ Calc_GasBen_HeatPumpHVAC_res
+# 
+# 
+ GasCO2_HeatPumpHVAC_res &lt;-   generate_qtrly_npv_2 (kWh_LS_QRT, ClimateZone, EU_HP_HVAC,EUL_Claims_HeatPumpHVAC_res,Divider_discount, Gas_kwhe_HVAC )
+ GasCO2_HPWH_res &lt;-   generate_qtrly_npv_2 (kWh_LS_QRT, ClimateZone, EU_HPWH,EUL_Claims_HPWH_res,Divider_discount, Gas_kwhe_HPWH)
+   
+GasCO2_HeatPumpHVAC_res_new &lt;-  generate_qtrly_npv_2 (kWh_LS_QRT, ClimateZone, EU_HP_HVAC,EUL_New_HeatPumpHVAC_res,Divider_discount, Gas_kwhe_HVAC)
+ GasCO2_HPWH_res_new &lt;-  generate_qtrly_npv_2(kWh_LS_QRT, ClimateZone, EU_HPWH,EUL_New_HPWH_res,Divider_discount, Gas_kwhe_HPWH)
 
 #Calculate Total Gas Benefits
-Calc_GasBen_HeatPumpHVAC_res &lt;-  GasCO2_HeatPumpHVAC_res+ GasComTD_HeatPumpHVAC_res
-Calc_GasBen_HPWH_res &lt;- GasCO2_HPWH_res + GasComTD_HPWH_res
+Calc_GasBen_HeatPumpHVAC_res &lt;- GasComTD_HeatPumpHVAC_res # GasCO2_HeatPumpHVAC_res+ 
+Calc_GasBen_HPWH_res &lt;-  GasComTD_HPWH_res #GasCO2_HPWH_res +
 
 Calc_GasBen_HeatPumpHVAC_res_new &lt;-  GasCO2_HeatPumpHVAC_res_new+ GasComTD_HeatPumpHVAC_res_new
 Calc_GasBen_HPWH_res_new &lt;- GasCO2_HPWH_res_new + GasComTD_HPWH_res_new</code></pre>
 <p>The Lifecycle FS NR Heat Pump HVAC Gas Benefits of the 2023 PGE
-claims are <strong>$1,698,787</strong>, and the total Lifecycle,
+claims are <strong>$1,682,950</strong>, and the total Lifecycle,
 Market-Rate Utility Bill savings for all mid-sized single family homes
 in these same claims are <strong>$891,217</strong>.</p>
 <p>The Lifecycle FS NR HPWH Gas Benefits of the 2023 PGE claims are
-<strong>$411,453</strong>, and the total Lifecycle, Market-Rate Utility
+<strong>$407,492</strong>, and the total Lifecycle, Market-Rate Utility
 Bill savings for all mid-sized single family homes in these same claims
 are <strong>$672,260</strong>.</p>
 <table>
@@ -537,12 +535,12 @@ are <strong>$672,260</strong>.</p>
 <tbody>
 <tr class="odd">
 <td align="left">HVAC Heat Pump</td>
-<td align="left">$1,698,787</td>
+<td align="left">$1,682,950</td>
 <td align="left">$891,217</td>
 </tr>
 <tr class="even">
 <td align="left">Heat Pump Water Heater</td>
-<td align="left">$411,453</td>
+<td align="left">$407,492</td>
 <td align="left">$672,260</td>
 </tr>
 </tbody>
@@ -701,48 +699,56 @@ TRC_Claims_HPWH &lt;- mean(Claims_HPWH$TRC)
 TRC_New_HP_HVAC_EUL &lt;- TRC_Claims_HP_HVAC * (1+((Calc_GasBen_HeatPumpHVAC_res_new-Calc_GasBen_HeatPumpHVAC_res)/Calc_GasBen_HeatPumpHVAC_res))
 TRC_New_HPWH_EUL &lt;- TRC_Claims_HPWH * (1+ ((Calc_GasBen_HPWH_res_new-Calc_GasBen_HPWH_res)/Calc_GasBen_HPWH_res))
 
+#factor in elec costs increase to TRC
+
+multiplier_elec_cost &lt;- c(sum(df_HeatPumpHVAC_res$&#39;Electric Supply Cost&#39;)) / c(sum(df_HeatPumpHVAC_res$&#39;TRC Cost Gross&#39;))
+percent_inc_Costs_HPHVAC_EUL &lt;-((Calc_ElecCost_HeatPumpHVAC_res_new-Calc_ElecCost_HeatPumpHVAC_res)/Calc_ElecCost_HeatPumpHVAC_res)* multiplier_elec_cost
+TRC_EUL_Net_HPHVAC &lt;-TRC_New_HP_HVAC_EUL - (TRC_New_HP_HVAC_EUL*percent_inc_Costs_HPHVAC_EUL)
+
+multiplier_elec_cost_2 &lt;- c(sum(df_HPWH_res$&#39;Electric Supply Cost&#39;)) / c(sum(df_HPWH_res$&#39;TRC Cost Gross&#39;))
+percent_inc_Costs_HPWH_EUL &lt;- ((Calc_ElecCost_HPWH_res_new-Calc_ElecCost_HPWH_res)/Calc_ElecCost_HPWH_res)*multiplier_elec_cost_2
+TRC_EUL_Net_HPWH&lt;- TRC_New_HPWH_EUL - (TRC_New_HPWH_EUL*percent_inc_Costs_HPWH_EUL)
+
+#Bill Impacts
 
 Bill_EUL_HVAC &lt;- Utility_Bill_HVAC_M_Total+Calc_GasBen_HeatPumpHVAC_res_new
 Bill_EUL_HPWH &lt;-Utility_Bill_HPWH_M_Total+ Calc_GasBen_HPWH_res_new
-TRC_Claims_HP_HVAC_Bills &lt;- TRC_New_HP_HVAC_EUL * (1+((Bill_EUL_HVAC-Calc_GasBen_HeatPumpHVAC_res_new)/Calc_GasBen_HeatPumpHVAC_res_new))
-TRC_Claims_HPWH_Bills &lt;- TRC_New_HPWH_EUL  * (1+ ((Bill_EUL_HPWH-Calc_GasBen_HPWH_res_new)/Calc_GasBen_HPWH_res_new))</code></pre>
+TRC_HP_HVAC_EUL_Bills &lt;- TRC_EUL_Net_HPHVAC * (1+((Bill_EUL_HVAC-Calc_GasBen_HeatPumpHVAC_res_new)/Calc_GasBen_HeatPumpHVAC_res_new))
+TRC_HPWH_EUL_Bills &lt;- TRC_EUL_Net_HPWH  * (1+ ((Bill_EUL_HPWH-Calc_GasBen_HPWH_res_new)/Calc_GasBen_HPWH_res_new))</code></pre>
 <table>
 <caption>Average Total Resource Costs (TRC) for Fuel-Sub
 Measures</caption>
 <colgroup>
-<col width="14%" />
+<col width="12%" />
 <col width="6%" />
-<col width="18%" />
-<col width="20%" />
-<col width="18%" />
-<col width="19%" />
+<col width="16%" />
+<col width="24%" />
+<col width="39%" />
 </colgroup>
 <thead>
 <tr class="header">
 <th align="left">Measure</th>
 <th align="left">TRC Claims</th>
 <th align="left">TRC, Increased from EUL Study</th>
-<th align="left">TRC, Increased from Bill Impacts</th>
-<th align="left">TRC, Decreased from Eul Study</th>
-<th align="left">TRC, Decreased from Infra Cost</th>
+<th align="left">TRC, Increased from EUL Study &amp; Bill Impacts</th>
+<th align="left">TRC, Increased from EUL Study &amp; Bill Impacts,
+Decreased from Infra Cost</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
 <td align="left">HVAC Heat Pump</td>
 <td align="left">0.77</td>
-<td align="left">1.11</td>
-<td align="left">1.52</td>
-<td align="left">1.26</td>
-<td align="left">0.88</td>
+<td align="left">0.93</td>
+<td align="left">1.27</td>
+<td align="left">0.89</td>
 </tr>
 <tr class="even">
 <td align="left">Heat Pump Water Heater</td>
 <td align="left">0.40</td>
-<td align="left">0.73</td>
-<td align="left">1.38</td>
-<td align="left">1.16</td>
 <td align="left">0.62</td>
+<td align="left">1.17</td>
+<td align="left">0.63</td>
 </tr>
 </tbody>
 </table>
